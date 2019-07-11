@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
@@ -25,17 +26,24 @@ namespace AzureEventGridSimulator.Controllers
         public TopicSettings TopicSettings => HttpContext.RetrieveTopicSettings();
 
         [HttpPost]
-        public IActionResult Post()
+        public async Task<IActionResult> Post()
         {
             var events = HttpContext.RetrieveEvents();
 
-            _logger.LogInformation("New request ({EventCount} event(s)) for '{TopicName}' @ {RequestUrl}", events.Length, TopicSettings.Name, Request.GetDisplayUrl());
-
-            foreach (var subscription in TopicSettings.Subscribers)
+            _logger.LogInformation($"New request ({events.Length} event(s)) for '{TopicSettings.Name}' @ {Request.GetDisplayUrl()}");
+            foreach (var gridEvent in events)
             {
+                _logger.LogInformation($"Event:{JsonConvert.SerializeObject(gridEvent, Formatting.Indented)}");
+            }
+
+            if (TopicSettings?.Subscribers?.Any() == true)
+            {
+                foreach (var subscription in TopicSettings.Subscribers)
+                {
 #pragma warning disable 4014
-                SendToSubscriber(subscription, events);
+                    await SendToSubscriber(subscription, events);
 #pragma warning restore 4014
+                }
             }
 
             return Ok();

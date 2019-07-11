@@ -36,16 +36,35 @@ namespace AzureEventGridSimulator
                                   {
                                       var simulatorSettings = (SimulatorSettings)options.ApplicationServices.GetService(typeof(SimulatorSettings));
 
-                                      foreach (var topics in simulatorSettings.Topics)
+                                      using (var store = new X509Store(StoreName.Root))
                                       {
-                                          options.Listen(IPAddress.Loopback, topics.Port,
-                                                         listenOptions => { listenOptions.UseHttps(StoreName.My, "localhost", true); });
+                                          store.Open(OpenFlags.ReadOnly);
+
+                                          var certs = store.Certificates.Find(X509FindType.FindBySubjectName, "localhost", false);
+                                          if (certs.Count > 0)
+                                          {
+                                              var certificate = certs[0];
+
+                                              foreach (var topics in simulatorSettings.Topics)
+                                              {
+
+                                                  options.Listen(IPAddress.Loopback, topics.Port, listenOptions =>
+                                                  {
+                                                      listenOptions.UseHttps(certificate);
+                                                  });
+                                              }
+                                          }
+                                          else
+                                          {
+                                              throw new ApplicationException("You do not have a .NET Core DEV certificate in your trusted root certificate store. Please run `dotnet dev-certs https --trust`");
+                                          }
                                       }
                                   })
                                   .Build();
 
                 var logger = (ILogger)host.Services.GetService(typeof(ILogger));
                 logger.LogInformation("Started");
+                logger.LogCritical("When connecting make sure you use localhost (not 127.0.0.1)");
 
                 try
                 {
