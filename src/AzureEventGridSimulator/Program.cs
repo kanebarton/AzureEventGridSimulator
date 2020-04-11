@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Drawing;
+using System.IO;
 using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using AzureEventGridSimulator.Extensions;
@@ -27,7 +29,7 @@ namespace AzureEventGridSimulator
                                       });
                                       logging.AddDebug();
 
-                                      logging.SetMinimumLevel(LogLevel.Debug);
+                                      logging.SetMinimumLevel(LogLevel.Information);
 
                                       logging.AddFilter("System", LogLevel.Warning);
                                       logging.AddFilter("Microsoft", LogLevel.Warning);
@@ -45,6 +47,11 @@ namespace AzureEventGridSimulator
                                           {
                                               var certificate = certs[0];
 
+                                              Colorful.Console.WriteLine("===============================================================================", Color.DarkCyan);
+                                              Colorful.Console.WriteLine("IMPORTANT:", Color.DarkCyan);
+                                              Colorful.Console.WriteLine("When connecting make sure you use localhost (not 127.0.0.1)", Color.DarkTurquoise);
+                                              Colorful.Console.WriteLine();
+
                                               foreach (var topics in simulatorSettings.Topics)
                                               {
 
@@ -52,7 +59,17 @@ namespace AzureEventGridSimulator
                                                   {
                                                       listenOptions.UseHttps(certificate);
                                                   });
+                                                  Colorful.Console.WriteLine($"{topics.Name} EventGrid handler is listening on https://localhost:{topics.Port}/", Color.DarkTurquoise);
                                               }
+
+                                              Colorful.Console.WriteLine("===============================================================================", Color.DarkCyan);
+                                              Colorful.Console.WriteLine();
+
+                                              Colorful.Console.WriteLine("===============================================================================", Color.DarkOrchid);
+                                              Colorful.Console.WriteLine($"Events that cannot be automatically routed will be will be automatically saved", Color.Orchid);
+                                              Colorful.Console.WriteLine($"Folder: {Path.GetTempPath()}AzureEventGridSimulator", Color.Orchid);
+                                              Colorful.Console.WriteLine("===============================================================================", Color.DarkOrchid);
+                                              Colorful.Console.WriteLine();
                                           }
                                           else
                                           {
@@ -63,9 +80,6 @@ namespace AzureEventGridSimulator
                                   .Build();
 
                 var logger = (ILogger)host.Services.GetService(typeof(ILogger));
-                logger.LogInformation("Started");
-                logger.LogCritical("When connecting make sure you use localhost (not 127.0.0.1)");
-
                 try
                 {
                     host.Run();
@@ -77,12 +91,12 @@ namespace AzureEventGridSimulator
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error: {ex.Message}");
+                Colorful.Console.WriteLine($"Error: {ex.Message}", Color.Red);
             }
 
-            Console.WriteLine("");
-            Console.WriteLine("Any key to exit...");
-            Console.ReadKey();
+            Colorful.Console.WriteLine("");
+            Colorful.Console.WriteLine("Any key to exit...");
+            Colorful.Console.ReadKey();
         }
     }
 }

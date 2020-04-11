@@ -1,11 +1,12 @@
 ﻿using System;
+using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using AzureEventGridSimulator.Extensions;
 using AzureEventGridSimulator.Settings;
-using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -30,26 +31,47 @@ namespace AzureEventGridSimulator.Controllers
         {
             var events = HttpContext.RetrieveEvents();
 
-            _logger.LogInformation($"New request ({events.Length} event(s)) for '{TopicSettings.Name}' @ {Request.GetDisplayUrl()}");
+            //_logger.LogInformation($"New request ({events.Length} event(s)) for '{TopicSettings.Name}' @ {Request.GetDisplayUrl()}");
             foreach (var gridEvent in events)
             {
-                _logger.LogInformation($"Event:{JsonConvert.SerializeObject(gridEvent, Formatting.Indented)}");
-            }
-
-            if (TopicSettings?.Subscribers?.Any() == true)
-            {
-                foreach (var subscription in TopicSettings.Subscribers)
+                using (_logger.BeginScope("New event"))
                 {
-#pragma warning disable 4014
-                    await SendToSubscriber(subscription, events);
-#pragma warning restore 4014
+                    Colorful.Console.WriteLine($"New event: Topic:{TopicSettings.Name}, Subject:{gridEvent.Subject}", Color.Coral);
+
+                    if (TopicSettings.ShowFullEventTrace)
+                    {
+                        Colorful.Console.WriteLine($"Event:{JsonConvert.SerializeObject(gridEvent, Formatting.Indented)}", Color.Aqua);
+                    }
+
+                    if (TopicSettings?.Subscribers?.Any() == true)
+                    {
+                        foreach (var subscription in TopicSettings.Subscribers)
+                        {
+                            await SendToSubscriber(subscription, gridEvent);
+                        }
+                    }
+                    else
+                    {
+                        if (TopicSettings.SaveEventsToTempFolder)
+                        {
+                            var directory = $"{Path.GetTempPath()}AzureEventGridSimulator";
+                            var filePath = $"{directory}\\{TopicSettings.Name}-{gridEvent.Subject}-{DateTime.UtcNow.Ticks}.json";
+
+                            if (!Directory.Exists(directory))
+                            {
+                                Directory.CreateDirectory(directory);
+                            }
+
+                            await System.IO.File.WriteAllTextAsync(filePath, JsonConvert.SerializeObject(gridEvent, Formatting.Indented));
+                        }
+                    }
                 }
             }
 
             return Ok();
         }
 
-        private async Task SendToSubscriber(SubscriptionSettings subscription, EventGridEvent[] events)
+        private async Task SendToSubscriber(SubscriptionSettings subscription, params EventGridEvent[] events)
         {
             try
             {
@@ -71,8 +93,7 @@ namespace AzureEventGridSimulator.Controllers
                                         {
                                             if (t.IsCompletedSuccessfully && t.Result.IsSuccessStatusCode)
                                             {
-                                                _logger.LogDebug(
-                                                                 "Event {EventId} sent to subscriber '{SubscriberName}' successfully.", evt.Id, subscription.Name);
+                                                _logger.LogDebug("Event {EventId} sent to subscriber '{SubscriberName}' successfully.", evt.Id, subscription.Name);
                                             }
                                             else
                                             {
@@ -88,8 +109,7 @@ namespace AzureEventGridSimulator.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                                 "Failed to send to subscriber '{SubscriberName}'.", subscription.Name);
+                _logger.LogError(ex, "Failed to send to subscriber '{SubscriberName}'.", subscription.Name);
             }
         }
     }

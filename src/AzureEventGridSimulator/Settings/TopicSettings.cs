@@ -16,5 +16,11 @@ namespace AzureEventGridSimulator.Settings
 
         [JsonProperty(PropertyName = "subscribers", Required = Required.Always)]
         public ICollection<SubscriptionSettings> Subscribers { get; set; }
+        
+        [JsonProperty(PropertyName = "showFullEventTrace", Required = Required.Always)]
+        public bool ShowFullEventTrace { get; set; }
+
+        [JsonProperty(PropertyName = "saveEventsToTempFolder", Required = Required.Always)]
+        public bool SaveEventsToTempFolder { get; set; }
     }
 }

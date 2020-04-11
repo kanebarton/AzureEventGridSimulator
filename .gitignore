@@ -330,3 +330,4 @@ ASALocalRun/
 .mfractor/
 /win-x64
 /src/AzureEventGridSimulator/dist
+/dist
