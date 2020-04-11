@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using AzureEventGridSimulator.Data;
 using AzureEventGridSimulator.Extensions;
 using AzureEventGridSimulator.Settings;
 using Microsoft.AspNetCore.Mvc;
@@ -34,42 +35,55 @@ namespace AzureEventGridSimulator.Controllers
             //_logger.LogInformation($"New request ({events.Length} event(s)) for '{TopicSettings.Name}' @ {Request.GetDisplayUrl()}");
             foreach (var gridEvent in events)
             {
-                using (_logger.BeginScope("New event"))
+                var save = TopicSettings.SaveEventsToTempFolder;
+                var messagePrefix = "New EventGrid Event::";
+                var messageColor = Color.DeepSkyBlue;
+                if (gridEvent.Data != null)
                 {
-                    Colorful.Console.WriteLine($"New event: Topic:{TopicSettings.Name}, Subject:{gridEvent.Subject}", Color.Coral);
+                    var unitTestData = JsonConvert.DeserializeObject<UnitTestData>(gridEvent.Data.ToString());
+                    save = !unitTestData.IsUnitTestData();
 
-                    if (TopicSettings.ShowFullEventTrace)
+                    if (unitTestData.IsUnitTestData())
                     {
-                        Colorful.Console.WriteLine($"Event:{JsonConvert.SerializeObject(gridEvent, Formatting.Indented)}", Color.Aqua);
+                        messagePrefix = "UnitTest Event::";
+                        messageColor = Color.LightGray;
                     }
+                }
 
-                    if (TopicSettings?.Subscribers?.Any() == true)
+                Colorful.Console.WriteLine($"{messagePrefix}Topic:{TopicSettings.Name}, Subject:{gridEvent.Subject}", messageColor);
+
+                if (TopicSettings.ShowFullEventTrace)
+                {
+                    Colorful.Console.WriteLine($"Event:{JsonConvert.SerializeObject(gridEvent, Formatting.Indented)}", Color.DodgerBlue);
+                }
+
+                if (TopicSettings?.Subscribers?.Any() == true)
+                {
+                    foreach (var subscription in TopicSettings.Subscribers)
                     {
-                        foreach (var subscription in TopicSettings.Subscribers)
-                        {
-                            await SendToSubscriber(subscription, gridEvent);
-                        }
+                        await SendToSubscriber(subscription, gridEvent);
                     }
-                    else
+                }
+                else
+                {
+                    if (save)
                     {
-                        if (TopicSettings.SaveEventsToTempFolder)
+                        var directory = $"{Path.GetTempPath()}AzureEventGridSimulator";
+                        var filePath = $"{directory}\\{TopicSettings.Name}-{gridEvent.Subject}-{DateTime.UtcNow.Ticks}.json";
+
+                        if (!Directory.Exists(directory))
                         {
-                            var directory = $"{Path.GetTempPath()}AzureEventGridSimulator";
-                            var filePath = $"{directory}\\{TopicSettings.Name}-{gridEvent.Subject}-{DateTime.UtcNow.Ticks}.json";
-
-                            if (!Directory.Exists(directory))
-                            {
-                                Directory.CreateDirectory(directory);
-                            }
-
-                            await System.IO.File.WriteAllTextAsync(filePath, JsonConvert.SerializeObject(gridEvent, Formatting.Indented));
+                            Directory.CreateDirectory(directory);
                         }
+
+                        await System.IO.File.WriteAllTextAsync(filePath, JsonConvert.SerializeObject(gridEvent, Formatting.Indented));
                     }
                 }
             }
 
             return Ok();
         }
+
 
         private async Task SendToSubscriber(SubscriptionSettings subscription, params EventGridEvent[] events)
         {
